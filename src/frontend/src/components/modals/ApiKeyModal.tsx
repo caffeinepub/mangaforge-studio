@@ -40,7 +40,15 @@ export default function ApiKeyModal({ open, onClose, onSave }: Props) {
     setErrorMsg(null);
     try {
       const result = await callGemini(actor, key, "Say OK");
-      if (!result || result.toLowerCase().includes("error")) {
+      // Only reject if the raw response contains API-level error indicators
+      const isApiError =
+        !result ||
+        result.includes('"error"') ||
+        result.toLowerCase().includes("api key not valid") ||
+        result.toLowerCase().includes("api_key_invalid") ||
+        result.toLowerCase().includes("permission_denied") ||
+        result.toLowerCase().includes("invalid api key");
+      if (isApiError) {
         setErrorMsg("API key is invalid. Please check and try again.");
         return;
       }

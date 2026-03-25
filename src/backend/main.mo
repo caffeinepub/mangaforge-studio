@@ -583,7 +583,7 @@ actor {
   };
 
   func buildGeminiUrl(apiKey : Text) : Text {
-    let baseUrl = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent";
+    let baseUrl = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent";
     baseUrl # "?key=" # apiKey;
   };
 
