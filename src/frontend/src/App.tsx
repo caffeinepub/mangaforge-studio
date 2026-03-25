@@ -1,6 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { Toaster } from "@/components/ui/sonner";
 import { AlertTriangle, Loader2, RefreshCw, Zap } from "lucide-react";
+import { useEffect, useState } from "react";
 import Header from "./components/layout/Header";
 import LeftSidebar from "./components/layout/LeftSidebar";
 import ApiKeyModal from "./components/modals/ApiKeyModal";
@@ -92,8 +93,6 @@ function StudioContent() {
   const renderMainContent = () => {
     if (activeTab === "characters") return <CharactersView />;
     if (activeTab === "suggestions") return <SuggestionsView />;
-
-    // Studio tab
     if (selectedChapterId) return <ChapterView />;
     if (selectedBookId) return <BookView />;
     if (selectedProjectId) return <ProjectView />;
@@ -137,21 +136,39 @@ function StudioContent() {
 }
 
 function AuthenticatedApp() {
-  const { actor, isFetching: actorFetching } = useActor();
-  const actorError = !actorFetching && !actor;
-  const refetch = () => window.location.reload();
+  const { actor, isFetching: actorFetching, isError: actorError } = useActor();
   const {
     isLoading: profileLoading,
     isFetched,
     data: profile,
-    isError: profileError,
+    // isError: profileError,
   } = useGetCallerUserProfile();
 
-  const isLoading =
-    actorFetching || (!!actor && profileLoading && !profileError);
-  const showProfileSetup = !isLoading && isFetched && profile === null;
+  // Hard timeout: after 15s with no actor, show retry screen
+  const [loadingTimedOut, setLoadingTimedOut] = useState(false);
+  useEffect(() => {
+    if (actor) return; // Actor loaded — cancel timeout
+    const t = setTimeout(() => setLoadingTimedOut(true), 15000);
+    return () => clearTimeout(t);
+  }, [actor]);
 
-  if (actorError && !actor) {
+  // Only show connection error when actor definitively failed (not just still loading)
+  // or when we timed out and there's still no actor
+  const showConnectionError =
+    (actorError && !actorFetching) || (loadingTimedOut && !actor);
+
+  // Show spinner while loading, but not past the timeout
+  const isLoading =
+    !showConnectionError && !actor && (actorFetching || profileLoading);
+
+  const showProfileSetup =
+    !!actor &&
+    !isLoading &&
+    isFetched &&
+    !showConnectionError &&
+    profile === null;
+
+  if (showConnectionError) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="text-center max-w-sm px-6">
@@ -161,7 +178,11 @@ function AuthenticatedApp() {
             Could not connect to the studio backend. Check your connection and
             try again.
           </p>
-          <Button size="sm" onClick={() => refetch()} variant="outline">
+          <Button
+            size="sm"
+            onClick={() => window.location.reload()}
+            variant="outline"
+          >
             <RefreshCw className="w-3 h-3 mr-2" /> Retry
           </Button>
         </div>
@@ -193,7 +214,14 @@ function AuthenticatedApp() {
 export default function App() {
   const { identity, isInitializing } = useInternetIdentity();
 
-  if (isInitializing) {
+  // Hard timeout for top-level init: after 8s, stop blocking on isInitializing
+  const [initTimedOut, setInitTimedOut] = useState(false);
+  useEffect(() => {
+    const t = setTimeout(() => setInitTimedOut(true), 8000);
+    return () => clearTimeout(t);
+  }, []);
+
+  if (isInitializing && !initTimedOut) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />

@@ -14,32 +14,32 @@ export function useActor() {
     queryFn: async () => {
       const isAuthenticated = !!identity;
 
+      let actor: backendInterface;
       if (!isAuthenticated) {
         // Return anonymous actor if not authenticated
-        return await createActorWithConfig();
+        actor = await createActorWithConfig();
+      } else {
+        const actorOptions = {
+          agentOptions: {
+            identity,
+          },
+        };
+        actor = await createActorWithConfig(actorOptions);
       }
 
-      const actorOptions = {
-        agentOptions: {
-          identity,
-        },
-      };
-
-      const actor = await createActorWithConfig(actorOptions);
-      const adminToken = getSecretParameter("caffeineAdminToken") || "";
+      // Attempt access control init but NEVER let it crash actor creation
       try {
+        const adminToken = getSecretParameter("caffeineAdminToken") || "";
         await actor._initializeAccessControlWithSecret(adminToken);
-      } catch {
-        // Continue even if access control init fails
+      } catch (_e) {
+        // Access control init failure is non-fatal; continue with actor
       }
+
       return actor;
     },
-    // Only refetch when identity changes
     staleTime: Number.POSITIVE_INFINITY,
-    // This will cause the actor to be recreated when the identity changes
     enabled: true,
-    retry: 2,
-    retryDelay: 1000,
+    retry: false,
   });
 
   // When the actor changes, invalidate dependent queries
@@ -61,5 +61,6 @@ export function useActor() {
   return {
     actor: actorQuery.data || null,
     isFetching: actorQuery.isFetching,
+    isError: actorQuery.isError,
   };
 }
