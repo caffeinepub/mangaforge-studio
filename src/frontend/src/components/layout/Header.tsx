@@ -1,18 +1,25 @@
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
   Sheet,
   SheetContent,
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
 import { useQueryClient } from "@tanstack/react-query";
-import { LogOut, Menu, Zap } from "lucide-react";
+import { LogOut, Menu, Moon, Search, Settings, Sun, Zap } from "lucide-react";
 import { useState } from "react";
 import { type AppTab, useAppContext } from "../../context/AppContext";
 import { useIsMobile } from "../../hooks/use-mobile";
 import { useInternetIdentity } from "../../hooks/useInternetIdentity";
 import { useGetCallerUserProfile } from "../../hooks/useQueries";
+import SearchModal from "../views/SearchModal";
 import SidebarProjectTree from "./SidebarProjectTree";
 
 const TABS: { id: AppTab; label: string }[] = [
@@ -22,12 +29,19 @@ const TABS: { id: AppTab; label: string }[] = [
 ];
 
 export default function Header() {
-  const { activeTab, setActiveTab } = useAppContext();
+  const {
+    activeTab,
+    setActiveTab,
+    darkMode,
+    toggleDarkMode,
+    setShowApiKeyModal,
+  } = useAppContext();
   const { clear, identity } = useInternetIdentity();
   const qc = useQueryClient();
   const { data: profile } = useGetCallerUserProfile();
   const isMobile = useIsMobile();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
 
   const handleLogout = async () => {
     await clear();
@@ -100,9 +114,62 @@ export default function Header() {
 
       {isMobile && <div className="flex-1" />}
 
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-1.5">
+        {/* Search */}
+        <Button
+          variant="ghost"
+          size="icon"
+          className="w-7 h-7"
+          onClick={() => setSearchOpen(true)}
+          data-ocid="nav.search.button"
+          aria-label="Search"
+        >
+          <Search className="w-3.5 h-3.5" />
+        </Button>
+
+        {/* Dark mode toggle */}
+        <Button
+          variant="ghost"
+          size="icon"
+          className="w-7 h-7"
+          onClick={toggleDarkMode}
+          data-ocid="nav.darkmode.toggle"
+          aria-label={darkMode ? "Switch to light mode" : "Switch to dark mode"}
+        >
+          {darkMode ? (
+            <Sun className="w-3.5 h-3.5" />
+          ) : (
+            <Moon className="w-3.5 h-3.5" />
+          )}
+        </Button>
+
+        {/* Settings */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="w-7 h-7"
+              data-ocid="nav.settings.button"
+              aria-label="Settings"
+            >
+              <Settings className="w-3.5 h-3.5" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="bg-card border-border">
+            <DropdownMenuItem
+              onClick={() => setShowApiKeyModal(true)}
+              data-ocid="nav.settings.change_apikey"
+            >
+              <span className="text-xs">Change API Key</span>
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+
         {!isMobile && profile?.name && (
-          <span className="text-xs text-muted-foreground">{profile.name}</span>
+          <span className="text-xs text-muted-foreground ml-1">
+            {profile.name}
+          </span>
         )}
         <Avatar className="w-7 h-7">
           <AvatarFallback className="text-xs bg-muted text-muted-foreground">
@@ -196,6 +263,8 @@ export default function Header() {
           )}
         </SheetContent>
       </Sheet>
+
+      <SearchModal open={searchOpen} onClose={() => setSearchOpen(false)} />
     </header>
   );
 }

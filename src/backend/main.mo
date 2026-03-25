@@ -583,7 +583,7 @@ actor {
   };
 
   func buildGeminiUrl(apiKey : Text) : Text {
-    let baseUrl = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.0-pro-latest:generateContent";
+    let baseUrl = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent";
     baseUrl # "?key=" # apiKey;
   };
 
@@ -596,7 +596,6 @@ actor {
     let url = buildGeminiUrl(apiKey);
     let headers : [Outcall.Header] = [
       { name = "Content-Type"; value = "application/json" },
-      { name = "Authorization"; value = "Bearer " # apiKey },
     ];
     let result = await executeGeminiPostRequest(url, headers, body);
     result;
@@ -607,7 +606,6 @@ actor {
     let url = buildGeminiUrl(apiKey);
     let headers : [Outcall.Header] = [
       { name = "Content-Type"; value = "application/json" },
-      { name = "Authorization"; value = "Bearer " # apiKey },
     ];
     await Outcall.httpPostRequest(url, headers, body, transform);
   };

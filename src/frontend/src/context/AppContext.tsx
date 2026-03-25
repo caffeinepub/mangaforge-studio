@@ -3,6 +3,7 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useState,
 } from "react";
 
@@ -23,6 +24,8 @@ interface AppContextType {
   setApiKey: (key: string) => void;
   showApiKeyModal: boolean;
   setShowApiKeyModal: (show: boolean) => void;
+  darkMode: boolean;
+  toggleDarkMode: () => void;
 }
 
 const AppContext = createContext<AppContextType | null>(null);
@@ -42,6 +45,26 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [apiKey, setApiKeyState] = useState<string | null>(() =>
     localStorage.getItem("gemini_api_key"),
   );
+  const [darkMode, setDarkMode] = useState(() => {
+    const saved = localStorage.getItem("mangaforge_theme");
+    return saved !== "light";
+  });
+
+  useEffect(() => {
+    if (darkMode) {
+      document.documentElement.classList.add("dark");
+    } else {
+      document.documentElement.classList.remove("dark");
+    }
+  }, [darkMode]);
+
+  const toggleDarkMode = useCallback(() => {
+    setDarkMode((prev) => {
+      const next = !prev;
+      localStorage.setItem("mangaforge_theme", next ? "dark" : "light");
+      return next;
+    });
+  }, []);
 
   const setApiKey = useCallback((key: string) => {
     localStorage.setItem("gemini_api_key", key);
@@ -75,6 +98,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setApiKey,
         showApiKeyModal,
         setShowApiKeyModal,
+        darkMode,
+        toggleDarkMode,
       }}
     >
       {children}

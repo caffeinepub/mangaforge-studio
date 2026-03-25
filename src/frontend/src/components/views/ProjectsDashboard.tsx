@@ -13,6 +13,37 @@ import { useAppContext } from "../../context/AppContext";
 import { useGetAllProjects } from "../../hooks/useQueries";
 import NewProjectModal from "../modals/NewProjectModal";
 
+const TAG_COLORS: Record<string, string> = {
+  Action: "oklch(0.5 0.2 28)",
+  Romance: "oklch(0.5 0.18 355)",
+  Fantasy: "oklch(0.45 0.15 290)",
+  "Sci-Fi": "oklch(0.45 0.15 210)",
+  Horror: "oklch(0.35 0.12 22)",
+  Comedy: "oklch(0.55 0.18 85)",
+  Drama: "oklch(0.45 0.10 250)",
+  Mystery: "oklch(0.4 0.12 270)",
+  Adventure: "oklch(0.5 0.18 150)",
+  "Slice-of-Life": "oklch(0.5 0.14 180)",
+};
+
+const STATUS_CONFIG: Record<string, { label: string; color: string }> = {
+  planning: { label: "Planning", color: "oklch(0.5 0.05 250)" },
+  in_progress: { label: "In Progress", color: "oklch(0.5 0.15 220)" },
+  complete: { label: "Complete", color: "oklch(0.5 0.15 145)" },
+};
+
+function getProjectTags(id: string): string[] {
+  try {
+    return JSON.parse(localStorage.getItem(`tags_project_${id}`) ?? "[]");
+  } catch {
+    return [];
+  }
+}
+
+function getProjectStatus(id: string): string {
+  return localStorage.getItem(`status_project_${id}`) ?? "planning";
+}
+
 export default function ProjectsDashboard() {
   const { data: projects = [], isLoading } = useGetAllProjects();
   const { navigateTo } = useAppContext();
@@ -76,50 +107,85 @@ export default function ProjectsDashboard() {
 
         {!isLoading && projects.length > 0 && (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {projects.map((proj, idx) => (
-              <motion.div
-                key={proj.id.toString()}
-                initial={{ opacity: 0, y: 12 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: idx * 0.05 }}
-                data-ocid={`dashboard.project.item.${idx + 1}`}
-              >
-                <Card
-                  className="bg-card border-border hover:border-muted-foreground cursor-pointer transition-all hover:shadow-lg group"
-                  onClick={() => navigateTo(proj.id)}
+            {projects.map((proj, idx) => {
+              const projTags = getProjectTags(proj.id.toString());
+              const projStatus = getProjectStatus(proj.id.toString());
+              const statusCfg =
+                STATUS_CONFIG[projStatus] ?? STATUS_CONFIG.planning;
+              return (
+                <motion.div
+                  key={proj.id.toString()}
+                  initial={{ opacity: 0, y: 12 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: idx * 0.05 }}
+                  data-ocid={`dashboard.project.item.${idx + 1}`}
                 >
-                  <CardHeader className="pb-2">
-                    <div
-                      className="w-8 h-8 rounded mb-2 flex items-center justify-center"
-                      style={{ background: "oklch(var(--red-brand) / 0.15)" }}
-                    >
-                      <FolderOpen
-                        className="w-4 h-4"
-                        style={{ color: "oklch(var(--red-brand))" }}
-                      />
-                    </div>
-                    <CardTitle className="text-sm font-semibold">
-                      {proj.name}
-                    </CardTitle>
-                    {proj.description && (
-                      <CardDescription className="text-xs line-clamp-2">
-                        {proj.description}
-                      </CardDescription>
-                    )}
-                  </CardHeader>
-                  <CardContent className="pt-0">
-                    <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                      <Calendar className="w-3 h-3" />
-                      <span>
-                        {new Date(
-                          Number(proj.createdAt / BigInt(1000000)),
-                        ).toLocaleDateString()}
-                      </span>
-                    </div>
-                  </CardContent>
-                </Card>
-              </motion.div>
-            ))}
+                  <Card
+                    className="bg-card border-border hover:border-muted-foreground cursor-pointer transition-all hover:shadow-lg group"
+                    onClick={() => navigateTo(proj.id)}
+                  >
+                    <CardHeader className="pb-2">
+                      <div className="flex items-start justify-between">
+                        <div
+                          className="w-8 h-8 rounded mb-2 flex items-center justify-center"
+                          style={{
+                            background: "oklch(var(--red-brand) / 0.15)",
+                          }}
+                        >
+                          <FolderOpen
+                            className="w-4 h-4"
+                            style={{ color: "oklch(var(--red-brand))" }}
+                          />
+                        </div>
+                        <span
+                          className="text-xs px-2 py-0.5 rounded-full"
+                          style={{
+                            background: `${statusCfg.color}33`,
+                            color: statusCfg.color,
+                          }}
+                        >
+                          {statusCfg.label}
+                        </span>
+                      </div>
+                      <CardTitle className="text-sm font-semibold">
+                        {proj.name}
+                      </CardTitle>
+                      {proj.description && (
+                        <CardDescription className="text-xs line-clamp-2">
+                          {proj.description}
+                        </CardDescription>
+                      )}
+                    </CardHeader>
+                    <CardContent className="pt-0 space-y-2">
+                      {projTags.length > 0 && (
+                        <div className="flex flex-wrap gap-1">
+                          {projTags.map((tag) => (
+                            <span
+                              key={tag}
+                              className="text-xs px-1.5 py-0.5 rounded-full text-white"
+                              style={{
+                                background:
+                                  TAG_COLORS[tag] ?? "oklch(0.45 0.1 250)",
+                              }}
+                            >
+                              {tag}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                      <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                        <Calendar className="w-3 h-3" />
+                        <span>
+                          {new Date(
+                            Number(proj.createdAt / BigInt(1000000)),
+                          ).toLocaleDateString()}
+                        </span>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </motion.div>
+              );
+            })}
           </div>
         )}
       </div>

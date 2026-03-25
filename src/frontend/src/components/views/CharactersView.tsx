@@ -10,8 +10,9 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { Textarea } from "@/components/ui/textarea";
-import { Loader2, Plus, User, Wand2, Zap } from "lucide-react";
+import { Loader2, Plus, ShieldCheck, User, Wand2, Zap } from "lucide-react";
 import { useId, useState } from "react";
 import { toast } from "sonner";
 import { ExternalBlob } from "../../backend";
@@ -153,7 +154,6 @@ function CharacterCreatorModal({
   };
 
   const isPending = creating || updating;
-
   const portraitSrc =
     portraitPreview ?? character?.portraitBlob?.getDirectURL() ?? null;
 
@@ -172,7 +172,6 @@ function CharacterCreatorModal({
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div className="space-y-3">
             <Label htmlFor={portraitInputId}>Portrait</Label>
-            {/* label natively activates the file input on click/tap — works on all mobile browsers */}
             <label
               htmlFor={portraitInputId}
               className="relative w-full aspect-square bg-muted rounded-lg border border-border overflow-hidden cursor-pointer hover:border-muted-foreground transition-colors block"
@@ -310,12 +309,130 @@ function CharacterCreatorModal({
   );
 }
 
+function ConsistencyCheckerDialog({
+  characters,
+  onClose,
+}: {
+  characters: CharacterWithId[];
+  onClose: () => void;
+}) {
+  const { actor } = useActor();
+  const { apiKey, setShowApiKeyModal } = useAppContext();
+  const [report, setReport] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  const runCheck = async () => {
+    if (!actor || !apiKey) {
+      setShowApiKeyModal(true);
+      return;
+    }
+    setLoading(true);
+    try {
+      const charList = characters
+        .map(
+          (c) =>
+            `Character: ${c.name}\nAppearance: ${c.appearanceDescription || "(none)"}\nPowers: ${c.powerDescription || "(none)"}\nReformed Powers: ${c.reformedPowerDescription || "(none)"}`,
+        )
+        .join("\n\n---\n\n");
+      const prompt = `Review these manga character descriptions for consistency issues, contradictions, or ways to make them more visually distinct. Return a structured report with:\n1. Consistency Issues\n2. Contradictions Found\n3. Suggestions for Visual Distinctiveness\n4. Overall Assessment\n\nCharacters:\n${charList}`;
+      const result = await callGemini(actor, apiKey, prompt);
+      setReport(result);
+    } catch {
+      toast.error("Consistency check failed");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent
+        className="bg-card border-border sm:max-w-2xl max-h-[85vh]"
+        data-ocid="consistency.dialog"
+      >
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <ShieldCheck
+              className="w-4 h-4"
+              style={{ color: "oklch(var(--blue-action))" }}
+            />
+            Character Consistency Check
+          </DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4">
+          {!report && !loading && (
+            <div className="text-center py-8">
+              <ShieldCheck className="w-12 h-12 mx-auto mb-3 text-muted-foreground" />
+              <p className="text-sm text-muted-foreground mb-4">
+                AI will review all {characters.length} characters for
+                contradictions and consistency issues.
+              </p>
+              <Button
+                onClick={runCheck}
+                style={{
+                  background: "oklch(var(--blue-action))",
+                  color: "white",
+                }}
+                data-ocid="consistency.check.button"
+              >
+                <ShieldCheck className="w-4 h-4 mr-2" />
+                Run Consistency Check
+              </Button>
+            </div>
+          )}
+          {loading && (
+            <div
+              className="flex items-center justify-center py-12"
+              data-ocid="consistency.loading_state"
+            >
+              <Loader2 className="w-6 h-6 animate-spin text-muted-foreground mr-3" />
+              <span className="text-sm text-muted-foreground">
+                Analyzing characters...
+              </span>
+            </div>
+          )}
+          {report && (
+            <ScrollArea className="max-h-96">
+              <div
+                className="bg-input rounded-lg p-4 text-sm whitespace-pre-wrap leading-relaxed"
+                data-ocid="consistency.success_state"
+              >
+                {report}
+              </div>
+            </ScrollArea>
+          )}
+        </div>
+        <DialogFooter>
+          <Button
+            variant="ghost"
+            onClick={onClose}
+            data-ocid="consistency.close_button"
+          >
+            Close
+          </Button>
+          {report && (
+            <Button
+              onClick={runCheck}
+              disabled={loading}
+              variant="outline"
+              data-ocid="consistency.recheck.button"
+            >
+              Re-check
+            </Button>
+          )}
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export default function CharactersView() {
   const { selectedProjectId } = useAppContext();
   const { data: characters = [], isLoading } =
     useGetCharactersForProject(selectedProjectId);
   const [creating, setCreating] = useState(false);
   const [editing, setEditing] = useState<CharacterWithId | null>(null);
+  const [showConsistency, setShowConsistency] = useState(false);
 
   if (!selectedProjectId) {
     return (
@@ -345,15 +462,31 @@ export default function CharactersView() {
               Create and manage your manga characters
             </p>
           </div>
-          <Button
-            data-ocid="characters.new_character.button"
-            onClick={() => setCreating(true)}
-            style={{ background: "oklch(var(--blue-action))", color: "white" }}
-            size="sm"
-          >
-            <Plus className="w-4 h-4 mr-1 sm:mr-2" />
-            <span className="hidden sm:inline">New </span>Character
-          </Button>
+          <div className="flex items-center gap-2">
+            {characters.length >= 2 && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowConsistency(true)}
+                data-ocid="characters.consistency_check.button"
+              >
+                <ShieldCheck className="w-4 h-4 mr-1" />
+                <span className="hidden sm:inline">Check Consistency</span>
+              </Button>
+            )}
+            <Button
+              data-ocid="characters.new_character.button"
+              onClick={() => setCreating(true)}
+              style={{
+                background: "oklch(var(--blue-action))",
+                color: "white",
+              }}
+              size="sm"
+            >
+              <Plus className="w-4 h-4 mr-1 sm:mr-2" />
+              <span className="hidden sm:inline">New </span>Character
+            </Button>
+          </div>
         </div>
 
         {isLoading && (
@@ -434,6 +567,12 @@ export default function CharactersView() {
           projectId={selectedProjectId}
           character={editing}
           onClose={() => setEditing(null)}
+        />
+      )}
+      {showConsistency && (
+        <ConsistencyCheckerDialog
+          characters={characters}
+          onClose={() => setShowConsistency(false)}
         />
       )}
     </div>
