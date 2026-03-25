@@ -36,7 +36,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [selectedChapterId, setSelectedChapterId] = useState<bigint | null>(
     null,
   );
-  const [showApiKeyModal, setShowApiKeyModal] = useState(false);
+  const [showApiKeyModal, setShowApiKeyModal] = useState(
+    () => !localStorage.getItem("gemini_api_key"),
+  );
   const [apiKey, setApiKeyState] = useState<string | null>(() =>
     localStorage.getItem("gemini_api_key"),
   );

@@ -605,22 +605,22 @@ actor {
   };
 
   // FUNCTION TO GET ALL CHARACTERS FOR A PROJECT
-  public query ({ caller }) func getCharactersForProject(projectId : ProjectId) : async [Character] {
+  public query ({ caller }) func getCharactersForProject(projectId : ProjectId) : async [(Id, Character)] {
     if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
       Runtime.trap("Unauthorized: Only users can access characters");
     };
     let project = getProjectInternal(projectId);
     shouldBeAdminOrOwner(project.owner, caller);
 
-    characters.values().toArray().filter(
-      func(character) {
+    characters.entries().toArray().filter(
+      func((_, character)) {
         character.projectId == projectId
       }
     );
   };
 
   // FUNCTION TO GET ALL CHAPTERS FOR A BOOK
-  public query ({ caller }) func getChaptersForBook(bookId : BookId) : async [Chapter] {
+  public query ({ caller }) func getChaptersForBook(bookId : BookId) : async [(Id, Chapter)] {
     if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
       Runtime.trap("Unauthorized: Only users can access chapters");
     };
@@ -628,23 +628,23 @@ actor {
     let project = getProjectInternal(book.projectId);
     shouldBeAdminOrOwner(project.owner, caller);
 
-    chapters.filter(
-      func(_, chapter) {
+    chapters.entries().toArray().filter(
+      func((_, chapter)) {
         chapter.bookId == bookId
       }
-    ).values().toArray().sort();
+    );
   };
 
   // FUNCTION TO GET ALL BOOKS FOR A PROJECT
-  public query ({ caller }) func getBooksForProject(projectId : ProjectId) : async [Book] {
+  public query ({ caller }) func getBooksForProject(projectId : ProjectId) : async [(Id, Book)] {
     if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
       Runtime.trap("Unauthorized: Only users can access books");
     };
     let project = getProjectInternal(projectId);
     shouldBeAdminOrOwner(project.owner, caller);
 
-    books.values().toArray().filter(
-      func(book) {
+    books.entries().toArray().filter(
+      func((_, book)) {
         book.projectId == projectId
       }
     );
@@ -749,15 +749,19 @@ actor {
   };
 
   // FETCH ALL PROJECTS
-  public query ({ caller }) func getAllProjects() : async [Project] {
-    if (not (AccessControl.isAdmin(accessControlState, caller))) {
-      Runtime.trap("You must be admin to get all projects");
+  public query ({ caller }) func getAllProjects() : async [(Id, Project)] {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized: Only users can access projects");
     };
-    projects.values().toArray().sort();
+    projects.entries().toArray().filter(
+      func((_, project)) {
+        project.owner == caller
+      }
+    );
   };
 
   // FETCH ALL PANELS FOR A CHAPTER
-  public query ({ caller }) func getPanelsForChapter(chapterId : ChapterId) : async [Panel] {
+  public query ({ caller }) func getPanelsForChapter(chapterId : ChapterId) : async [(Id, Panel)] {
     if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
       Runtime.trap("Unauthorized: Only users can access panels");
     };
@@ -766,15 +770,15 @@ actor {
     let project = getProjectInternal(book.projectId);
     shouldBeAdminOrOwner(project.owner, caller);
 
-    panels.values().toArray().filter(
-      func(panel) {
+    panels.entries().toArray().filter(
+      func((_, panel)) {
         panel.chapterId == chapterId;
       }
     );
   };
 
   // FETCH ALL COVER REFERENCES FOR A BOOK
-  public query ({ caller }) func getCoverReferencesForBook(bookId : BookId) : async [CoverReference] {
+  public query ({ caller }) func getCoverReferencesForBook(bookId : BookId) : async [(Id, CoverReference)] {
     if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
       Runtime.trap("Unauthorized: Only users can access cover references");
     };
@@ -782,8 +786,8 @@ actor {
     let project = getProjectInternal(book.projectId);
     shouldBeAdminOrOwner(project.owner, caller);
 
-    coverReferences.values().toArray().filter(
-      func(reference) {
+    coverReferences.entries().toArray().filter(
+      func((_, reference)) {
         switch (reference.bookId) {
           case (?id) { id == bookId };
           case (null) { false };
@@ -793,17 +797,17 @@ actor {
   };
 
   // FETCH ALL SUGGESTIONS FOR PROJECT
-  public query ({ caller }) func getSuggestionsForProject(projectId : ProjectId) : async [Suggestion] {
+  public query ({ caller }) func getSuggestionsForProject(projectId : ProjectId) : async [(Id, Suggestion)] {
     if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
       Runtime.trap("Unauthorized: Only users can access suggestions");
     };
     let project = getProjectInternal(projectId);
     shouldBeAdminOrOwner(project.owner, caller);
 
-    suggestions.filter(
-      func(_, suggestion) {
+    suggestions.entries().toArray().filter(
+      func((_, suggestion)) {
         suggestion.projectId == projectId;
       }
-    ).values().toArray();
+    );
   };
 };

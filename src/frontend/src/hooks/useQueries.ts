@@ -8,7 +8,7 @@ import type {
   Project,
   Suggestion,
 } from "../backend";
-import { registerId, withId } from "../utils/idRegistry";
+import { registerId } from "../utils/idRegistry";
 import { useActor } from "./useActor";
 
 export type ProjectWithId = Project & { id: bigint };
@@ -55,8 +55,8 @@ export function useGetAllProjects() {
     queryKey: ["projects"],
     queryFn: async () => {
       if (!actor) return [];
-      const projects = await actor.getAllProjects();
-      return withId("project", projects);
+      const entries = await actor.getAllProjects();
+      return entries.map(([id, p]) => ({ ...p, id }));
     },
     enabled: !!actor && !isFetching,
   });
@@ -86,8 +86,8 @@ export function useGetBooksForProject(projectId: bigint | null) {
     queryKey: ["books", projectId?.toString()],
     queryFn: async () => {
       if (!actor || !projectId) return [];
-      const books = await actor.getBooksForProject(projectId);
-      return withId("book", books);
+      const entries = await actor.getBooksForProject(projectId);
+      return entries.map(([id, b]) => ({ ...b, id }));
     },
     enabled: !!actor && !isFetching && !!projectId,
   });
@@ -125,8 +125,8 @@ export function useGetChaptersForBook(bookId: bigint | null) {
     queryKey: ["chapters", bookId?.toString()],
     queryFn: async () => {
       if (!actor || !bookId) return [];
-      const chapters = await actor.getChaptersForBook(bookId);
-      return withId("chapter", chapters);
+      const entries = await actor.getChaptersForBook(bookId);
+      return entries.map(([id, c]) => ({ ...c, id }));
     },
     enabled: !!actor && !isFetching && !!bookId,
   });
@@ -184,8 +184,8 @@ export function useGetCharactersForProject(projectId: bigint | null) {
     queryKey: ["characters", projectId?.toString()],
     queryFn: async () => {
       if (!actor || !projectId) return [];
-      const chars = await actor.getCharactersForProject(projectId);
-      return withId("character", chars);
+      const entries = await actor.getCharactersForProject(projectId);
+      return entries.map(([id, c]) => ({ ...c, id }));
     },
     enabled: !!actor && !isFetching && !!projectId,
   });
@@ -249,8 +249,8 @@ export function useGetPanelsForChapter(chapterId: bigint | null) {
     queryKey: ["panels", chapterId?.toString()],
     queryFn: async () => {
       if (!actor || !chapterId) return [];
-      const panels = await actor.getPanelsForChapter(chapterId);
-      return withId("panel", panels);
+      const entries = await actor.getPanelsForChapter(chapterId);
+      return entries.map(([id, p]) => ({ ...p, id }));
     },
     enabled: !!actor && !isFetching && !!chapterId,
   });
@@ -308,8 +308,8 @@ export function useGetCoverReferences(bookId: bigint | null) {
     queryKey: ["coverRefs", bookId?.toString()],
     queryFn: async () => {
       if (!actor || !bookId) return [];
-      const refs = await actor.getCoverReferencesForBook(bookId);
-      return withId("coverRef", refs);
+      const entries = await actor.getCoverReferencesForBook(bookId);
+      return entries.map(([id, r]) => ({ ...r, id }));
     },
     enabled: !!actor && !isFetching && !!bookId,
   });
@@ -357,8 +357,8 @@ export function useGetSuggestionsForProject(projectId: bigint | null) {
     queryKey: ["suggestions", projectId?.toString()],
     queryFn: async () => {
       if (!actor || !projectId) return [];
-      const suggs = await actor.getSuggestionsForProject(projectId);
-      return withId("suggestion", suggs);
+      const entries = await actor.getSuggestionsForProject(projectId);
+      return entries.map(([id, s]) => ({ ...s, id }));
     },
     enabled: !!actor && !isFetching && !!projectId,
   });

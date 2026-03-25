@@ -212,22 +212,22 @@ export interface backendInterface {
     deleteSuggestion(id: Id): Promise<void>;
     generateGeminiCompletion(apiKey: string, body: string): Promise<string>;
     generateGeminiCompletionStreaming(apiKey: string, body: string): Promise<string>;
-    getAllProjects(): Promise<Array<Project>>;
+    getAllProjects(): Promise<Array<[Id, Project]>>;
     getBook(id: Id): Promise<Book>;
-    getBooksForProject(projectId: ProjectId): Promise<Array<Book>>;
+    getBooksForProject(projectId: ProjectId): Promise<Array<[Id, Book]>>;
     getCallerUserProfile(): Promise<UserProfile | null>;
     getCallerUserRole(): Promise<UserRole>;
     getChapter(id: Id): Promise<Chapter>;
-    getChaptersForBook(bookId: BookId): Promise<Array<Chapter>>;
+    getChaptersForBook(bookId: BookId): Promise<Array<[Id, Chapter]>>;
     getCharacter(id: Id): Promise<Character>;
-    getCharactersForProject(projectId: ProjectId): Promise<Array<Character>>;
+    getCharactersForProject(projectId: ProjectId): Promise<Array<[Id, Character]>>;
     getCoverReference(id: Id): Promise<CoverReference>;
-    getCoverReferencesForBook(bookId: BookId): Promise<Array<CoverReference>>;
+    getCoverReferencesForBook(bookId: BookId): Promise<Array<[Id, CoverReference]>>;
     getPanel(id: Id): Promise<Panel>;
-    getPanelsForChapter(chapterId: ChapterId): Promise<Array<Panel>>;
+    getPanelsForChapter(chapterId: ChapterId): Promise<Array<[Id, Panel]>>;
     getProject(id: Id): Promise<Project>;
     getSuggestion(id: Id): Promise<Suggestion>;
-    getSuggestionsForProject(projectId: ProjectId): Promise<Array<Suggestion>>;
+    getSuggestionsForProject(projectId: ProjectId): Promise<Array<[Id, Suggestion]>>;
     getUserProfile(user: Principal): Promise<UserProfile | null>;
     isCallerAdmin(): Promise<boolean>;
     saveCallerUserProfile(profile: UserProfile): Promise<void>;
@@ -578,7 +578,7 @@ export class Backend implements backendInterface {
             return result;
         }
     }
-    async getAllProjects(): Promise<Array<Project>> {
+    async getAllProjects(): Promise<Array<[Id, Project]>> {
         if (this.processError) {
             try {
                 const result = await this.actor.getAllProjects();
@@ -606,7 +606,7 @@ export class Backend implements backendInterface {
             return result;
         }
     }
-    async getBooksForProject(arg0: ProjectId): Promise<Array<Book>> {
+    async getBooksForProject(arg0: ProjectId): Promise<Array<[Id, Book]>> {
         if (this.processError) {
             try {
                 const result = await this.actor.getBooksForProject(arg0);
@@ -662,7 +662,7 @@ export class Backend implements backendInterface {
             return result;
         }
     }
-    async getChaptersForBook(arg0: BookId): Promise<Array<Chapter>> {
+    async getChaptersForBook(arg0: BookId): Promise<Array<[Id, Chapter]>> {
         if (this.processError) {
             try {
                 const result = await this.actor.getChaptersForBook(arg0);
@@ -690,7 +690,7 @@ export class Backend implements backendInterface {
             return from_candid_Character_n18(this._uploadFile, this._downloadFile, result);
         }
     }
-    async getCharactersForProject(arg0: ProjectId): Promise<Array<Character>> {
+    async getCharactersForProject(arg0: ProjectId): Promise<Array<[Id, Character]>> {
         if (this.processError) {
             try {
                 const result = await this.actor.getCharactersForProject(arg0);
@@ -718,7 +718,7 @@ export class Backend implements backendInterface {
             return from_candid_CoverReference_n23(this._uploadFile, this._downloadFile, result);
         }
     }
-    async getCoverReferencesForBook(arg0: BookId): Promise<Array<CoverReference>> {
+    async getCoverReferencesForBook(arg0: BookId): Promise<Array<[Id, CoverReference]>> {
         if (this.processError) {
             try {
                 const result = await this.actor.getCoverReferencesForBook(arg0);
@@ -746,7 +746,7 @@ export class Backend implements backendInterface {
             return result;
         }
     }
-    async getPanelsForChapter(arg0: ChapterId): Promise<Array<Panel>> {
+    async getPanelsForChapter(arg0: ChapterId): Promise<Array<[Id, Panel]>> {
         if (this.processError) {
             try {
                 const result = await this.actor.getPanelsForChapter(arg0);
@@ -788,7 +788,7 @@ export class Backend implements backendInterface {
             return result;
         }
     }
-    async getSuggestionsForProject(arg0: ProjectId): Promise<Array<Suggestion>> {
+    async getSuggestionsForProject(arg0: ProjectId): Promise<Array<[Id, Suggestion]>> {
         if (this.processError) {
             try {
                 const result = await this.actor.getSuggestionsForProject(arg0);
