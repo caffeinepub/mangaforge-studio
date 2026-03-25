@@ -2,7 +2,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { ImageIcon, Loader2, Upload, X } from "lucide-react";
-import { useRef, useState } from "react";
+import { useId, useState } from "react";
 import { toast } from "sonner";
 import { ExternalBlob } from "../../backend";
 import {
@@ -33,7 +33,7 @@ export default function CoverCreation({
   const [overallDescription, setOverallDescription] = useState("");
   const [isUploading, setIsUploading] = useState(false);
   const [isDragOver, setIsDragOver] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const fileInputId = useId();
 
   const { mutateAsync: createRef } = useCreateCoverReference();
   const { mutateAsync: updateChapter } = useUpdateChapter();
@@ -53,6 +53,7 @@ export default function CoverCreation({
 
   const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) addFiles(e.target.files);
+    e.target.value = "";
   };
 
   const handleDrop = (e: React.DragEvent) => {
@@ -118,17 +119,15 @@ export default function CoverCreation({
         </p>
       </div>
 
-      {/* Drop Zone */}
-      <button
-        type="button"
+      {/* Drop Zone — label activates the file input natively on all browsers/mobile */}
+      <label
+        htmlFor={fileInputId}
         data-ocid="cover.dropzone"
-        className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors ${
+        className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors select-none block ${
           isDragOver
             ? "border-primary bg-primary/5"
             : "border-border hover:border-muted-foreground"
         }`}
-        onClick={() => fileInputRef.current?.click()}
-        onKeyDown={(e) => e.key === "Enter" && fileInputRef.current?.click()}
         onDragOver={(e) => {
           e.preventDefault();
           setIsDragOver(true);
@@ -137,7 +136,7 @@ export default function CoverCreation({
         onDrop={handleDrop}
       >
         <input
-          ref={fileInputRef}
+          id={fileInputId}
           type="file"
           accept="image/*"
           multiple
@@ -148,12 +147,12 @@ export default function CoverCreation({
         <p className="text-sm text-muted-foreground">
           {isDragOver
             ? "Drop images here"
-            : "Drag & drop reference images, or click to browse"}
+            : "Tap or drag & drop reference images"}
         </p>
         <p className="text-xs text-muted-foreground mt-1">
           Upload multiple images for better AI consistency
         </p>
-      </button>
+      </label>
 
       {images.length > 0 && (
         <div className="grid grid-cols-2 gap-3">

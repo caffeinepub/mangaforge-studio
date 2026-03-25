@@ -12,7 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Loader2, Plus, User, Wand2, Zap } from "lucide-react";
-import { useRef, useState } from "react";
+import { useId, useState } from "react";
 import { toast } from "sonner";
 import { ExternalBlob } from "../../backend";
 import { useAppContext } from "../../context/AppContext";
@@ -38,6 +38,7 @@ function CharacterCreatorModal({
   const { apiKey, setShowApiKeyModal } = useAppContext();
   const { mutateAsync: createChar, isPending: creating } = useCreateCharacter();
   const { mutateAsync: updateChar, isPending: updating } = useUpdateCharacter();
+  const portraitInputId = useId();
 
   const [name, setName] = useState(character?.name ?? "");
   const [portraitFile, setPortraitFile] = useState<File | null>(null);
@@ -51,13 +52,13 @@ function CharacterCreatorModal({
   );
   const [genLoading, setGenLoading] = useState(false);
   const [reformLoading, setReformLoading] = useState(false);
-  const fileRef = useRef<HTMLInputElement>(null);
 
   const handlePortraitSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     setPortraitFile(file);
     setPortraitPreview(URL.createObjectURL(file));
+    e.target.value = "";
   };
 
   const handleGenerateDescription = async () => {
@@ -168,13 +169,13 @@ function CharacterCreatorModal({
           </DialogTitle>
         </DialogHeader>
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div className="space-y-3">
-            <Label>Portrait</Label>
-            <button
-              type="button"
-              className="relative w-full aspect-square bg-muted rounded-lg border border-border overflow-hidden cursor-pointer hover:border-muted-foreground transition-colors"
-              onClick={() => fileRef.current?.click()}
+            <Label htmlFor={portraitInputId}>Portrait</Label>
+            {/* label natively activates the file input on click/tap — works on all mobile browsers */}
+            <label
+              htmlFor={portraitInputId}
+              className="relative w-full aspect-square bg-muted rounded-lg border border-border overflow-hidden cursor-pointer hover:border-muted-foreground transition-colors block"
               data-ocid="character.portrait.upload_button"
             >
               {portraitSrc ? (
@@ -186,17 +187,17 @@ function CharacterCreatorModal({
               ) : (
                 <div className="flex flex-col items-center justify-center h-full gap-2 text-muted-foreground">
                   <User className="w-8 h-8" />
-                  <span className="text-xs">Click to upload portrait</span>
+                  <span className="text-xs">Tap to upload portrait</span>
                 </div>
               )}
-            </button>
-            <input
-              ref={fileRef}
-              type="file"
-              accept="image/*"
-              className="hidden"
-              onChange={handlePortraitSelect}
-            />
+              <input
+                id={portraitInputId}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handlePortraitSelect}
+              />
+            </label>
             <Button
               onClick={handleGenerateDescription}
               disabled={genLoading || !portraitFile}
@@ -333,11 +334,13 @@ export default function CharactersView() {
   }
 
   return (
-    <div className="flex-1 overflow-auto p-6">
+    <div className="flex-1 overflow-auto p-4 sm:p-6">
       <div className="max-w-4xl mx-auto">
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h1 className="text-2xl font-display font-bold">Characters</h1>
+            <h1 className="text-xl sm:text-2xl font-display font-bold">
+              Characters
+            </h1>
             <p className="text-sm text-muted-foreground mt-0.5">
               Create and manage your manga characters
             </p>
@@ -346,14 +349,16 @@ export default function CharactersView() {
             data-ocid="characters.new_character.button"
             onClick={() => setCreating(true)}
             style={{ background: "oklch(var(--blue-action))", color: "white" }}
+            size="sm"
           >
-            <Plus className="w-4 h-4 mr-2" /> New Character
+            <Plus className="w-4 h-4 mr-1 sm:mr-2" />
+            <span className="hidden sm:inline">New </span>Character
           </Button>
         </div>
 
         {isLoading && (
           <div
-            className="grid grid-cols-3 gap-4"
+            className="grid grid-cols-2 sm:grid-cols-3 gap-4"
             data-ocid="characters.loading_state"
           >
             {["sk-1", "sk-2", "sk-3"].map((k) => (
