@@ -1,6 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { Toaster } from "@/components/ui/sonner";
-import { Loader2, Zap } from "lucide-react";
+import { AlertTriangle, Loader2, RefreshCw, Zap } from "lucide-react";
 import Header from "./components/layout/Header";
 import LeftSidebar from "./components/layout/LeftSidebar";
 import ApiKeyModal from "./components/modals/ApiKeyModal";
@@ -12,6 +12,7 @@ import ProjectView from "./components/views/ProjectView";
 import ProjectsDashboard from "./components/views/ProjectsDashboard";
 import SuggestionsView from "./components/views/SuggestionsView";
 import { AppProvider, useAppContext } from "./context/AppContext";
+import { useActor } from "./hooks/useActor";
 import { useInternetIdentity } from "./hooks/useInternetIdentity";
 import { useGetCallerUserProfile } from "./hooks/useQueries";
 
@@ -136,8 +137,38 @@ function StudioContent() {
 }
 
 function AuthenticatedApp() {
-  const { isLoading, isFetched, data: profile } = useGetCallerUserProfile();
+  const {
+    actor,
+    isFetching: actorFetching,
+    isError: actorError,
+    refetch,
+  } = useActor();
+  const {
+    isLoading: profileLoading,
+    isFetched,
+    data: profile,
+  } = useGetCallerUserProfile();
+
+  const isLoading = actorFetching || (!!actor && profileLoading);
   const showProfileSetup = !isLoading && isFetched && profile === null;
+
+  if (actorError && !actor) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="text-center max-w-sm px-6">
+          <AlertTriangle className="w-8 h-8 mx-auto mb-3 text-yellow-500" />
+          <h2 className="text-sm font-semibold mb-1">Connection failed</h2>
+          <p className="text-xs text-muted-foreground mb-4">
+            Could not connect to the studio backend. Check your connection and
+            try again.
+          </p>
+          <Button size="sm" onClick={() => refetch()} variant="outline">
+            <RefreshCw className="w-3 h-3 mr-2" /> Retry
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   if (isLoading) {
     return (

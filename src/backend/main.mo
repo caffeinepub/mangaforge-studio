@@ -89,25 +89,6 @@ actor {
     name : Text;
   };
 
-  // Compare id for custom types
-  module Project {
-    public func compare(project1 : Project, project2 : Project) : Order.Order {
-      Text.compare(project1.name, project2.name);
-    };
-  };
-
-  module Book {
-    public func compare(book1 : Book, book2 : Book) : Order.Order {
-      Text.compare(book1.title, book2.title);
-    };
-  };
-
-  module Chapter {
-    public func compare(chapter1 : Chapter, chapter2 : Chapter) : Order.Order {
-      Nat.compare(chapter1.orderIndex, chapter2.orderIndex);
-    };
-  };
-
   let projects = Map.empty<Id, Project>();
   let characters = Map.empty<Id, Character>();
   let books = Map.empty<Id, Book>();
@@ -128,11 +109,30 @@ actor {
     nextId;
   };
 
+  // Auto-register any authenticated caller as a user if not already registered.
+  // This eliminates the deadlock where new users can't call any API because
+  // they need to be registered first, but registration requires calling an API.
+  func ensureRegistered(caller : Principal) {
+    if (caller.isAnonymous()) {
+      Runtime.trap("Must be authenticated to use this feature");
+    };
+    switch (accessControlState.userRoles.get(caller)) {
+      case (?_) {}; // already registered, nothing to do
+      case (null) {
+        // Register as regular user
+        accessControlState.userRoles.add(caller, #user);
+      };
+    };
+  };
+
+  func isAuthorized(caller : Principal) : Bool {
+    ensureRegistered(caller);
+    AccessControl.hasPermission(accessControlState, caller, #user);
+  };
+
   // User Profile Functions
   public query ({ caller }) func getCallerUserProfile() : async ?UserProfile {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can access profiles");
-    };
+    if (caller.isAnonymous()) { return null };
     userProfiles.get(caller);
   };
 
@@ -144,18 +144,28 @@ actor {
   };
 
   public shared ({ caller }) func saveCallerUserProfile(profile : UserProfile) : async () {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can save profiles");
+    if (caller.isAnonymous()) {
+      Runtime.trap("Must be authenticated to save profile");
+    };
+    // Auto-register user on first profile save
+    switch (accessControlState.userRoles.get(caller)) {
+      case (?_) {};
+      case (null) {
+        accessControlState.userRoles.add(caller, #user);
+      };
     };
     userProfiles.add(caller, profile);
   };
 
   // PROJECT CRUD
   public shared ({ caller }) func createProject(name : Text, description : Text) : async Id {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can create projects");
+    ignore isAuthorized(caller);
+    if (caller.isAnonymous()) {
+      Runtime.trap("Only registered users can create projects. Please log in.");
     };
-    assertProjectOwnership(caller, name);
+    if (name == "") {
+      Runtime.trap("Project name cannot be empty.");
+    };
     let id = generateId();
     let project : Project = {
       owner = caller;
@@ -169,23 +179,18 @@ actor {
   };
 
   public query ({ caller }) func getProject(id : Id) : async Project {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can access projects");
-    };
+    ignore isAuthorized(caller);
     let project = getProjectInternal(id);
     shouldBeAdminOrOwner(project.owner, caller);
     project;
   };
 
   public shared ({ caller }) func deleteProject(id : Id) : async () {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can delete projects");
-    };
+    ignore isAuthorized(caller);
     let project = getProjectInternal(id);
     shouldBeAdminOrOwner(project.owner, caller);
     projects.remove(id);
 
-    // Delete all data associated with the project
     characters.keys().toArray().forEach(
       func(x) {
         switch (characters.get(x)) {
@@ -225,9 +230,7 @@ actor {
   };
 
   public shared ({ caller }) func updateProject(id : Id, project : Project) : async () {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can update projects");
-    };
+    ignore isAuthorized(caller);
     let projectData = getProjectInternal(id);
     shouldBeAdminOrOwner(projectData.owner, caller);
     let updatedProject = {
@@ -236,37 +239,28 @@ actor {
       description = project.description;
       updatedAt = Time.now();
     };
-
     projects.add(id, updatedProject);
   };
 
   // CHARACTER CRUD
   public shared ({ caller }) func createCharacter(character : Character) : async Id {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can create characters");
-    };
+    ignore isAuthorized(caller);
     let project = getProjectInternal(character.projectId);
     shouldBeAdminOrOwner(project.owner, caller);
-
     let id = generateId();
     let newCharacter = {
       character with
       createdAt = Time.now();
-      appearanceDescription = "";
-      portraitBlob = null;
     };
     characters.add(id, newCharacter);
     id;
   };
 
   public shared ({ caller }) func updateCharacter(id : Id, character : Character) : async () {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can update characters");
-    };
+    ignore isAuthorized(caller);
     let charData = getCharacterInternal(id);
     let project = getProjectInternal(charData.projectId);
     shouldBeAdminOrOwner(project.owner, caller);
-
     let updatedCharacter = {
       charData with
       name = character.name;
@@ -279,9 +273,7 @@ actor {
   };
 
   public shared ({ caller }) func deleteCharacter(id : Id) : async () {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can delete characters");
-    };
+    ignore isAuthorized(caller);
     let character = getCharacterInternal(id);
     let project = getProjectInternal(character.projectId);
     shouldBeAdminOrOwner(project.owner, caller);
@@ -289,9 +281,7 @@ actor {
   };
 
   public query ({ caller }) func getCharacter(id : Id) : async Character {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can access characters");
-    };
+    ignore isAuthorized(caller);
     let character = getCharacterInternal(id);
     let project = getProjectInternal(character.projectId);
     shouldBeAdminOrOwner(project.owner, caller);
@@ -300,25 +290,19 @@ actor {
 
   // BOOK CRUD
   public shared ({ caller }) func createBook(book : Book) : async Id {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can create books");
-    };
+    ignore isAuthorized(caller);
     let project = getProjectInternal(book.projectId);
     shouldBeAdminOrOwner(project.owner, caller);
-
     let id = generateId();
     books.add(id, { book with createdAt = Time.now(); updatedAt = Time.now() });
     id;
   };
 
   public shared ({ caller }) func updateBook(id : Id, book : Book) : async () {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can update books");
-    };
+    ignore isAuthorized(caller);
     let existing = getBookInternal(id);
     let project = getProjectInternal(existing.projectId);
     shouldBeAdminOrOwner(project.owner, caller);
-
     books.add(id, {
       book with
       createdAt = existing.createdAt;
@@ -327,9 +311,7 @@ actor {
   };
 
   public shared ({ caller }) func deleteBook(id : Id) : async () {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can delete books");
-    };
+    ignore isAuthorized(caller);
     let book = getBookInternal(id);
     let project = getProjectInternal(book.projectId);
     shouldBeAdminOrOwner(project.owner, caller);
@@ -337,9 +319,7 @@ actor {
   };
 
   public query ({ caller }) func getBook(id : Id) : async Book {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can access books");
-    };
+    ignore isAuthorized(caller);
     let book = getBookInternal(id);
     let project = getProjectInternal(book.projectId);
     shouldBeAdminOrOwner(project.owner, caller);
@@ -348,13 +328,10 @@ actor {
 
   // CHAPTER CRUD
   public shared ({ caller }) func createChapter(chapter : Chapter) : async Id {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can create chapters");
-    };
+    ignore isAuthorized(caller);
     let book = getBookInternal(chapter.bookId);
     let project = getProjectInternal(book.projectId);
     shouldBeAdminOrOwner(project.owner, caller);
-
     let id = generateId();
     chapters.add(
       id,
@@ -369,14 +346,11 @@ actor {
   };
 
   public shared ({ caller }) func updateChapter(id : Id, chapter : Chapter) : async () {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can update chapters");
-    };
+    ignore isAuthorized(caller);
     let existing = getChapterInternal(id);
     let book = getBookInternal(existing.bookId);
     let project = getProjectInternal(book.projectId);
     shouldBeAdminOrOwner(project.owner, caller);
-
     chapters.add(
       id,
       {
@@ -388,9 +362,7 @@ actor {
   };
 
   public shared ({ caller }) func deleteChapter(id : Id) : async () {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can delete chapters");
-    };
+    ignore isAuthorized(caller);
     let chapter = getChapterInternal(id);
     let book = getBookInternal(chapter.bookId);
     let project = getProjectInternal(book.projectId);
@@ -399,9 +371,7 @@ actor {
   };
 
   public query ({ caller }) func getChapter(id : Id) : async Chapter {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can access chapters");
-    };
+    ignore isAuthorized(caller);
     let chapter = getChapterInternal(id);
     let book = getBookInternal(chapter.bookId);
     let project = getProjectInternal(book.projectId);
@@ -411,11 +381,7 @@ actor {
 
   // COVER REFERENCE CRUD
   public shared ({ caller }) func createCoverReference(coverReference : CoverReference) : async Id {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can create cover references");
-    };
-
-    // Verify ownership through either chapter or book
+    ignore isAuthorized(caller);
     switch (coverReference.chapterId, coverReference.bookId) {
       case (?chapterId, _) {
         let chapter = getChapterInternal(chapterId);
@@ -432,19 +398,14 @@ actor {
         Runtime.trap("Cover reference must have either chapterId or bookId");
       };
     };
-
     let id = generateId();
     coverReferences.add(id, { coverReference with createdAt = Time.now() });
     id;
   };
 
   public shared ({ caller }) func deleteCoverReference(id : Id) : async () {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can delete cover references");
-    };
+    ignore isAuthorized(caller);
     let coverRef = getCoverReferenceInternal(id);
-
-    // Verify ownership through either chapter or book
     switch (coverRef.chapterId, coverRef.bookId) {
       case (?chapterId, _) {
         let chapter = getChapterInternal(chapterId);
@@ -459,17 +420,12 @@ actor {
       };
       case (null, null) {};
     };
-
     coverReferences.remove(id);
   };
 
   public query ({ caller }) func getCoverReference(id : Id) : async CoverReference {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can access cover references");
-    };
+    ignore isAuthorized(caller);
     let coverRef = getCoverReferenceInternal(id);
-
-    // Verify ownership through either chapter or book
     switch (coverRef.chapterId, coverRef.bookId) {
       case (?chapterId, _) {
         let chapter = getChapterInternal(chapterId);
@@ -484,20 +440,16 @@ actor {
       };
       case (null, null) {};
     };
-
     coverRef;
   };
 
   // PANEL CRUD
   public shared ({ caller }) func createPanel(panel : Panel) : async Id {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can create panels");
-    };
+    ignore isAuthorized(caller);
     let chapter = getChapterInternal(panel.chapterId);
     let book = getBookInternal(chapter.bookId);
     let project = getProjectInternal(book.projectId);
     shouldBeAdminOrOwner(project.owner, caller);
-
     let id = generateId();
     panels.add(
       id,
@@ -511,15 +463,12 @@ actor {
   };
 
   public shared ({ caller }) func updatePanel(id : Id, panel : Panel) : async () {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can update panels");
-    };
+    ignore isAuthorized(caller);
     let existing = getPanelInternal(id);
     let chapter = getChapterInternal(existing.chapterId);
     let book = getBookInternal(chapter.bookId);
     let project = getProjectInternal(book.projectId);
     shouldBeAdminOrOwner(project.owner, caller);
-
     panels.add(
       id,
       {
@@ -531,9 +480,7 @@ actor {
   };
 
   public shared ({ caller }) func deletePanel(id : Id) : async () {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can delete panels");
-    };
+    ignore isAuthorized(caller);
     let panel = getPanelInternal(id);
     let chapter = getChapterInternal(panel.chapterId);
     let book = getBookInternal(chapter.bookId);
@@ -543,9 +490,7 @@ actor {
   };
 
   public query ({ caller }) func getPanel(id : Id) : async Panel {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can access panels");
-    };
+    ignore isAuthorized(caller);
     let panel = getPanelInternal(id);
     let chapter = getChapterInternal(panel.chapterId);
     let book = getBookInternal(chapter.bookId);
@@ -556,12 +501,9 @@ actor {
 
   // SUGGESTION CRUD
   public shared ({ caller }) func createSuggestion(suggestion : Suggestion) : async Id {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can create suggestions");
-    };
+    ignore isAuthorized(caller);
     let project = getProjectInternal(suggestion.projectId);
     shouldBeAdminOrOwner(project.owner, caller);
-
     let id = generateId();
     suggestions.add(
       id,
@@ -575,9 +517,7 @@ actor {
   };
 
   public shared ({ caller }) func updateSuggestionStatus(id : Id, status : Text) : async () {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can update suggestions");
-    };
+    ignore isAuthorized(caller);
     let existing = getSuggestionInternal(id);
     let project = getProjectInternal(existing.projectId);
     shouldBeAdminOrOwner(project.owner, caller);
@@ -585,9 +525,7 @@ actor {
   };
 
   public shared ({ caller }) func deleteSuggestion(id : Id) : async () {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can delete suggestions");
-    };
+    ignore isAuthorized(caller);
     let suggestion = getSuggestionInternal(id);
     let project = getProjectInternal(suggestion.projectId);
     shouldBeAdminOrOwner(project.owner, caller);
@@ -595,9 +533,7 @@ actor {
   };
 
   public query ({ caller }) func getSuggestion(id : Id) : async Suggestion {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can access suggestions");
-    };
+    ignore isAuthorized(caller);
     let suggestion = getSuggestionInternal(id);
     let project = getProjectInternal(suggestion.projectId);
     shouldBeAdminOrOwner(project.owner, caller);
@@ -606,12 +542,9 @@ actor {
 
   // FUNCTION TO GET ALL CHARACTERS FOR A PROJECT
   public query ({ caller }) func getCharactersForProject(projectId : ProjectId) : async [(Id, Character)] {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can access characters");
-    };
+    ignore isAuthorized(caller);
     let project = getProjectInternal(projectId);
     shouldBeAdminOrOwner(project.owner, caller);
-
     characters.entries().toArray().filter(
       func((_, character)) {
         character.projectId == projectId
@@ -621,13 +554,10 @@ actor {
 
   // FUNCTION TO GET ALL CHAPTERS FOR A BOOK
   public query ({ caller }) func getChaptersForBook(bookId : BookId) : async [(Id, Chapter)] {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can access chapters");
-    };
+    ignore isAuthorized(caller);
     let book = getBookInternal(bookId);
     let project = getProjectInternal(book.projectId);
     shouldBeAdminOrOwner(project.owner, caller);
-
     chapters.entries().toArray().filter(
       func((_, chapter)) {
         chapter.bookId == bookId
@@ -637,12 +567,9 @@ actor {
 
   // FUNCTION TO GET ALL BOOKS FOR A PROJECT
   public query ({ caller }) func getBooksForProject(projectId : ProjectId) : async [(Id, Book)] {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can access books");
-    };
+    ignore isAuthorized(caller);
     let project = getProjectInternal(projectId);
     shouldBeAdminOrOwner(project.owner, caller);
-
     books.entries().toArray().filter(
       func((_, book)) {
         book.projectId == projectId
@@ -655,17 +582,6 @@ actor {
     Outcall.transform(input);
   };
 
-  // Gemini POST request logic
-  func buildGeminiAuthorizationHeaders(apiKey : Text) : [Outcall.Header] {
-    [
-      { name = "Content-Type"; value = "application/json" },
-      {
-        name = "Authorization";
-        value = "Bearer " # apiKey;
-      },
-    ];
-  };
-
   func buildGeminiUrl(apiKey : Text) : Text {
     let baseUrl = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.0-pro-latest:generateContent";
     baseUrl # "?key=" # apiKey;
@@ -676,22 +592,23 @@ actor {
   };
 
   public shared ({ caller }) func generateGeminiCompletion(apiKey : Text, body : Text) : async Text {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can generate AI completions");
-    };
+    ignore isAuthorized(caller);
     let url = buildGeminiUrl(apiKey);
-    let headers = buildGeminiAuthorizationHeaders(apiKey);
+    let headers : [Outcall.Header] = [
+      { name = "Content-Type"; value = "application/json" },
+      { name = "Authorization"; value = "Bearer " # apiKey },
+    ];
     let result = await executeGeminiPostRequest(url, headers, body);
     result;
   };
 
-  // Fetch suggestions for a question, in streamed chunks (for streaming UI with full request body)
   public shared ({ caller }) func generateGeminiCompletionStreaming(apiKey : Text, body : Text) : async Text {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can generate AI completions");
-    };
+    ignore isAuthorized(caller);
     let url = buildGeminiUrl(apiKey);
-    let headers = buildGeminiAuthorizationHeaders(apiKey);
+    let headers : [Outcall.Header] = [
+      { name = "Content-Type"; value = "application/json" },
+      { name = "Authorization"; value = "Bearer " # apiKey },
+    ];
     await Outcall.httpPostRequest(url, headers, body, transform);
   };
 
@@ -735,23 +652,19 @@ actor {
 
   func shouldBeAdminOrOwner(owner : Principal, caller : Principal) {
     if (not (AccessControl.isAdmin(accessControlState, caller) or (owner == caller))) {
-      Runtime.trap("You must be project owner/admin to access this project");
-    };
-  };
-
-  func assertProjectOwnership(caller : Principal, projectName : Text) {
-    if (caller.isAnonymous()) {
-      Runtime.trap("Only registered users can create projects. Please log in or register to continue.");
-    };
-    if (projectName == "") {
-      Runtime.trap("Project name cannot be empty. Please provide a valid name for your project.");
+      Runtime.trap("You must be project owner/admin to access this resource");
     };
   };
 
   // FETCH ALL PROJECTS
   public query ({ caller }) func getAllProjects() : async [(Id, Project)] {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can access projects");
+    if (caller.isAnonymous()) { return [] };
+    // Auto-register user if not in the system yet
+    switch (accessControlState.userRoles.get(caller)) {
+      case (?_) {};
+      case (null) {
+        accessControlState.userRoles.add(caller, #user);
+      };
     };
     projects.entries().toArray().filter(
       func((_, project)) {
@@ -762,14 +675,11 @@ actor {
 
   // FETCH ALL PANELS FOR A CHAPTER
   public query ({ caller }) func getPanelsForChapter(chapterId : ChapterId) : async [(Id, Panel)] {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can access panels");
-    };
+    ignore isAuthorized(caller);
     let chapter = getChapterInternal(chapterId);
     let book = getBookInternal(chapter.bookId);
     let project = getProjectInternal(book.projectId);
     shouldBeAdminOrOwner(project.owner, caller);
-
     panels.entries().toArray().filter(
       func((_, panel)) {
         panel.chapterId == chapterId;
@@ -779,13 +689,10 @@ actor {
 
   // FETCH ALL COVER REFERENCES FOR A BOOK
   public query ({ caller }) func getCoverReferencesForBook(bookId : BookId) : async [(Id, CoverReference)] {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can access cover references");
-    };
+    ignore isAuthorized(caller);
     let book = getBookInternal(bookId);
     let project = getProjectInternal(book.projectId);
     shouldBeAdminOrOwner(project.owner, caller);
-
     coverReferences.entries().toArray().filter(
       func((_, reference)) {
         switch (reference.bookId) {
@@ -798,12 +705,9 @@ actor {
 
   // FETCH ALL SUGGESTIONS FOR PROJECT
   public query ({ caller }) func getSuggestionsForProject(projectId : ProjectId) : async [(Id, Suggestion)] {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can access suggestions");
-    };
+    ignore isAuthorized(caller);
     let project = getProjectInternal(projectId);
     shouldBeAdminOrOwner(project.owner, caller);
-
     suggestions.entries().toArray().filter(
       func((_, suggestion)) {
         suggestion.projectId == projectId;
