@@ -144,9 +144,11 @@ function AuthenticatedApp() {
     isLoading: profileLoading,
     isFetched,
     data: profile,
+    isError: profileError,
   } = useGetCallerUserProfile();
 
-  const isLoading = actorFetching || (!!actor && profileLoading);
+  const isLoading =
+    actorFetching || (!!actor && profileLoading && !profileError);
   const showProfileSetup = !isLoading && isFetched && profile === null;
 
   if (actorError && !actor) {

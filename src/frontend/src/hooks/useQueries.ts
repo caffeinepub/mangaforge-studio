@@ -33,7 +33,7 @@ export function useGetCallerUserProfile() {
   return {
     ...query,
     isLoading: actorFetching || query.isLoading,
-    isFetched: !!actor && query.isFetched,
+    isFetched: query.isFetched,
   };
 }
 

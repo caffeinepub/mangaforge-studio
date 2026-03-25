@@ -7,6 +7,8 @@ import {
   useState,
 } from "react";
 
+const HARDCODED_API_KEY = "AIzaSyBGApYsIqhLup8bHCd1YmnWmL3zTgI8k9Q";
+
 export type AppTab = "studio" | "characters" | "suggestions";
 
 interface AppContextType {
@@ -39,12 +41,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [selectedChapterId, setSelectedChapterId] = useState<bigint | null>(
     null,
   );
-  const [showApiKeyModal, setShowApiKeyModal] = useState(
-    () => !localStorage.getItem("gemini_api_key"),
-  );
-  const [apiKey, setApiKeyState] = useState<string | null>(() =>
-    localStorage.getItem("gemini_api_key"),
-  );
+  // Always use the hardcoded key; never show the API key modal
+  const [showApiKeyModal, setShowApiKeyModal] = useState(false);
+  const [apiKey, setApiKeyState] = useState<string | null>(HARDCODED_API_KEY);
   const [darkMode, setDarkMode] = useState(() => {
     const saved = localStorage.getItem("mangaforge_theme");
     return saved !== "light";
@@ -66,9 +65,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
-  const setApiKey = useCallback((key: string) => {
-    localStorage.setItem("gemini_api_key", key);
-    setApiKeyState(key);
+  const setApiKey = useCallback((_key: string) => {
+    // Key is hardcoded; ignore external changes
+    setApiKeyState(HARDCODED_API_KEY);
   }, []);
 
   const navigateTo = useCallback(
