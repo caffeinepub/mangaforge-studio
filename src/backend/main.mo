@@ -110,16 +110,14 @@ actor {
   };
 
   // Auto-register any authenticated caller as a user if not already registered.
-  // This eliminates the deadlock where new users can't call any API because
-  // they need to be registered first, but registration requires calling an API.
+  // Must only be called from shared (update) functions — query functions cannot write state.
   func ensureRegistered(caller : Principal) {
     if (caller.isAnonymous()) {
       Runtime.trap("Must be authenticated to use this feature");
     };
     switch (accessControlState.userRoles.get(caller)) {
-      case (?_) {}; // already registered, nothing to do
+      case (?_) {};
       case (null) {
-        // Register as regular user
         accessControlState.userRoles.add(caller, #user);
       };
     };
@@ -147,7 +145,7 @@ actor {
     if (caller.isAnonymous()) {
       Runtime.trap("Must be authenticated to save profile");
     };
-    // Auto-register user on first profile save
+    // Auto-register user on profile save
     switch (accessControlState.userRoles.get(caller)) {
       case (?_) {};
       case (null) {
@@ -159,22 +157,18 @@ actor {
 
   // PROJECT CRUD
   public shared ({ caller }) func createProject(name : Text, description : Text) : async Id {
-    ignore isAuthorized(caller);
-    if (caller.isAnonymous()) {
-      Runtime.trap("Only registered users can create projects. Please log in.");
-    };
+    ignore isAuthorized(caller); // auto-registers user as side effect
     if (name == "") {
       Runtime.trap("Project name cannot be empty.");
     };
     let id = generateId();
-    let project : Project = {
+    projects.add(id, {
       owner = caller;
       name;
       description;
       createdAt = Time.now();
       updatedAt = Time.now();
-    };
-    projects.add(id, project);
+    });
     id;
   };
 
@@ -195,9 +189,7 @@ actor {
       func(x) {
         switch (characters.get(x)) {
           case (?char) {
-            if (char.projectId == id) {
-              characters.remove(x);
-            };
+            if (char.projectId == id) { characters.remove(x) };
           };
           case (null) {};
         };
@@ -207,9 +199,7 @@ actor {
       func(x) {
         switch (books.get(x)) {
           case (?book) {
-            if (book.projectId == id) {
-              books.remove(x);
-            };
+            if (book.projectId == id) { books.remove(x) };
           };
           case (null) {};
         };
@@ -219,9 +209,7 @@ actor {
       func(x) {
         switch (suggestions.get(x)) {
           case (?suggestion) {
-            if (suggestion.projectId == id) {
-              suggestions.remove(x);
-            };
+            if (suggestion.projectId == id) { suggestions.remove(x) };
           };
           case (null) {};
         };
@@ -233,13 +221,12 @@ actor {
     ignore isAuthorized(caller);
     let projectData = getProjectInternal(id);
     shouldBeAdminOrOwner(projectData.owner, caller);
-    let updatedProject = {
+    projects.add(id, {
       projectData with
       name = project.name;
       description = project.description;
       updatedAt = Time.now();
-    };
-    projects.add(id, updatedProject);
+    });
   };
 
   // CHARACTER CRUD
@@ -248,11 +235,7 @@ actor {
     let project = getProjectInternal(character.projectId);
     shouldBeAdminOrOwner(project.owner, caller);
     let id = generateId();
-    let newCharacter = {
-      character with
-      createdAt = Time.now();
-    };
-    characters.add(id, newCharacter);
+    characters.add(id, { character with createdAt = Time.now() });
     id;
   };
 
@@ -261,15 +244,14 @@ actor {
     let charData = getCharacterInternal(id);
     let project = getProjectInternal(charData.projectId);
     shouldBeAdminOrOwner(project.owner, caller);
-    let updatedCharacter = {
+    characters.add(id, {
       charData with
       name = character.name;
       powerDescription = character.powerDescription;
       reformedPowerDescription = character.reformedPowerDescription;
       appearanceDescription = character.appearanceDescription;
       portraitBlob = character.portraitBlob;
-    };
-    characters.add(id, updatedCharacter);
+    });
   };
 
   public shared ({ caller }) func deleteCharacter(id : Id) : async () {
@@ -303,11 +285,7 @@ actor {
     let existing = getBookInternal(id);
     let project = getProjectInternal(existing.projectId);
     shouldBeAdminOrOwner(project.owner, caller);
-    books.add(id, {
-      book with
-      createdAt = existing.createdAt;
-      updatedAt = Time.now();
-    });
+    books.add(id, { book with createdAt = existing.createdAt; updatedAt = Time.now() });
   };
 
   public shared ({ caller }) func deleteBook(id : Id) : async () {
@@ -333,15 +311,7 @@ actor {
     let project = getProjectInternal(book.projectId);
     shouldBeAdminOrOwner(project.owner, caller);
     let id = generateId();
-    chapters.add(
-      id,
-      {
-        chapter with
-        createdAt = Time.now();
-        updatedAt = Time.now();
-        hasCover = false;
-      },
-    );
+    chapters.add(id, { chapter with createdAt = Time.now(); updatedAt = Time.now(); hasCover = false });
     id;
   };
 
@@ -351,14 +321,7 @@ actor {
     let book = getBookInternal(existing.bookId);
     let project = getProjectInternal(book.projectId);
     shouldBeAdminOrOwner(project.owner, caller);
-    chapters.add(
-      id,
-      {
-        chapter with
-        createdAt = existing.createdAt;
-        updatedAt = Time.now();
-      },
-    );
+    chapters.add(id, { chapter with createdAt = existing.createdAt; updatedAt = Time.now() });
   };
 
   public shared ({ caller }) func deleteChapter(id : Id) : async () {
@@ -451,14 +414,7 @@ actor {
     let project = getProjectInternal(book.projectId);
     shouldBeAdminOrOwner(project.owner, caller);
     let id = generateId();
-    panels.add(
-      id,
-      {
-        panel with
-        createdAt = Time.now();
-        updatedAt = Time.now();
-      },
-    );
+    panels.add(id, { panel with createdAt = Time.now(); updatedAt = Time.now() });
     id;
   };
 
@@ -469,14 +425,7 @@ actor {
     let book = getBookInternal(chapter.bookId);
     let project = getProjectInternal(book.projectId);
     shouldBeAdminOrOwner(project.owner, caller);
-    panels.add(
-      id,
-      {
-        panel with
-        createdAt = existing.createdAt;
-        updatedAt = Time.now();
-      },
-    );
+    panels.add(id, { panel with createdAt = existing.createdAt; updatedAt = Time.now() });
   };
 
   public shared ({ caller }) func deletePanel(id : Id) : async () {
@@ -505,14 +454,7 @@ actor {
     let project = getProjectInternal(suggestion.projectId);
     shouldBeAdminOrOwner(project.owner, caller);
     let id = generateId();
-    suggestions.add(
-      id,
-      {
-        suggestion with
-        createdAt = Time.now();
-        status = "pending";
-      },
-    );
+    suggestions.add(id, { suggestion with createdAt = Time.now(); status = "pending" });
     id;
   };
 
@@ -546,9 +488,7 @@ actor {
     let project = getProjectInternal(projectId);
     shouldBeAdminOrOwner(project.owner, caller);
     characters.entries().toArray().filter(
-      func((_, character)) {
-        character.projectId == projectId
-      }
+      func((_, character)) { character.projectId == projectId }
     );
   };
 
@@ -559,9 +499,7 @@ actor {
     let project = getProjectInternal(book.projectId);
     shouldBeAdminOrOwner(project.owner, caller);
     chapters.entries().toArray().filter(
-      func((_, chapter)) {
-        chapter.bookId == bookId
-      }
+      func((_, chapter)) { chapter.bookId == bookId }
     );
   };
 
@@ -571,9 +509,7 @@ actor {
     let project = getProjectInternal(projectId);
     shouldBeAdminOrOwner(project.owner, caller);
     books.entries().toArray().filter(
-      func((_, book)) {
-        book.projectId == projectId
-      }
+      func((_, book)) { book.projectId == projectId }
     );
   };
 
@@ -583,70 +519,38 @@ actor {
   };
 
   func buildGeminiUrl(apiKey : Text) : Text {
-    let baseUrl = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent";
-    baseUrl # "?key=" # apiKey;
-  };
-
-  func executeGeminiPostRequest(url : Text, headers : [Outcall.Header], body : Text) : async Text {
-    await Outcall.httpPostRequest(url, headers, body, transform);
+    "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent" # "?key=" # apiKey;
   };
 
   public shared ({ caller }) func generateGeminiCompletion(apiKey : Text, body : Text) : async Text {
     ignore isAuthorized(caller);
     let url = buildGeminiUrl(apiKey);
-    let headers : [Outcall.Header] = [
-      { name = "Content-Type"; value = "application/json" },
-    ];
-    let result = await executeGeminiPostRequest(url, headers, body);
-    result;
+    let headers : [Outcall.Header] = [{ name = "Content-Type"; value = "application/json" }];
+    await Outcall.httpPostRequest(url, headers, body, transform);
   };
 
   public shared ({ caller }) func generateGeminiCompletionStreaming(apiKey : Text, body : Text) : async Text {
     ignore isAuthorized(caller);
     let url = buildGeminiUrl(apiKey);
-    let headers : [Outcall.Header] = [
-      { name = "Content-Type"; value = "application/json" },
-    ];
+    let headers : [Outcall.Header] = [{ name = "Content-Type"; value = "application/json" }];
     await Outcall.httpPostRequest(url, headers, body, transform);
   };
 
   // INTERNAL DATA ACCESS
   func getById<T>(id : Id, store : Map.Map<Id, T>, typeDescription : Text) : T {
     switch (store.get(id)) {
-      case (null) {
-        Runtime.trap(typeDescription # " " # id.toText() # " not found");
-      };
+      case (null) { Runtime.trap(typeDescription # " " # id.toText() # " not found") };
       case (?x) { x };
     };
   };
 
-  func getProjectInternal(id : Id) : Project {
-    getById(id, projects, "Project");
-  };
-
-  func getCharacterInternal(id : Id) : Character {
-    getById(id, characters, "Character");
-  };
-
-  func getBookInternal(id : Id) : Book {
-    getById(id, books, "Book");
-  };
-
-  func getChapterInternal(id : Id) : Chapter {
-    getById(id, chapters, "Chapter");
-  };
-
-  func getCoverReferenceInternal(id : Id) : CoverReference {
-    getById(id, coverReferences, "Cover reference");
-  };
-
-  func getPanelInternal(id : Id) : Panel {
-    getById(id, panels, "Panel");
-  };
-
-  func getSuggestionInternal(id : Id) : Suggestion {
-    getById(id, suggestions, "Suggestion");
-  };
+  func getProjectInternal(id : Id) : Project { getById(id, projects, "Project") };
+  func getCharacterInternal(id : Id) : Character { getById(id, characters, "Character") };
+  func getBookInternal(id : Id) : Book { getById(id, books, "Book") };
+  func getChapterInternal(id : Id) : Chapter { getById(id, chapters, "Chapter") };
+  func getCoverReferenceInternal(id : Id) : CoverReference { getById(id, coverReferences, "Cover reference") };
+  func getPanelInternal(id : Id) : Panel { getById(id, panels, "Panel") };
+  func getSuggestionInternal(id : Id) : Suggestion { getById(id, suggestions, "Suggestion") };
 
   func shouldBeAdminOrOwner(owner : Principal, caller : Principal) {
     if (not (AccessControl.isAdmin(accessControlState, caller) or (owner == caller))) {
@@ -654,20 +558,13 @@ actor {
     };
   };
 
-  // FETCH ALL PROJECTS
+  // FETCH ALL PROJECTS — pure query, no state mutations
   public query ({ caller }) func getAllProjects() : async [(Id, Project)] {
     if (caller.isAnonymous()) { return [] };
-    // Auto-register user if not in the system yet
-    switch (accessControlState.userRoles.get(caller)) {
-      case (?_) {};
-      case (null) {
-        accessControlState.userRoles.add(caller, #user);
-      };
-    };
+    // Note: we can only READ state in query functions. Auto-registration happens
+    // on the first update call (createProject, saveCallerUserProfile, etc.)
     projects.entries().toArray().filter(
-      func((_, project)) {
-        project.owner == caller
-      }
+      func((_, project)) { project.owner == caller }
     );
   };
 
@@ -679,9 +576,7 @@ actor {
     let project = getProjectInternal(book.projectId);
     shouldBeAdminOrOwner(project.owner, caller);
     panels.entries().toArray().filter(
-      func((_, panel)) {
-        panel.chapterId == chapterId;
-      }
+      func((_, panel)) { panel.chapterId == chapterId }
     );
   };
 
@@ -707,9 +602,7 @@ actor {
     let project = getProjectInternal(projectId);
     shouldBeAdminOrOwner(project.owner, caller);
     suggestions.entries().toArray().filter(
-      func((_, suggestion)) {
-        suggestion.projectId == projectId;
-      }
+      func((_, suggestion)) { suggestion.projectId == projectId }
     );
   };
 };

@@ -14,46 +14,41 @@ export function useActor() {
     queryFn: async () => {
       const isAuthenticated = !!identity;
 
-      let actor: backendInterface;
       if (!isAuthenticated) {
-        // Return anonymous actor if not authenticated
-        actor = await createActorWithConfig();
-      } else {
-        const actorOptions = {
-          agentOptions: {
-            identity,
-          },
-        };
-        actor = await createActorWithConfig(actorOptions);
+        return await createActorWithConfig();
       }
 
-      // Attempt access control init but NEVER let it crash actor creation
+      const actorOptions = {
+        agentOptions: {
+          identity,
+        },
+      };
+
+      const actor = await createActorWithConfig(actorOptions);
+
+      // Initialize access control but never let it crash actor creation
       try {
         const adminToken = getSecretParameter("caffeineAdminToken") || "";
         await actor._initializeAccessControlWithSecret(adminToken);
-      } catch (_e) {
-        // Access control init failure is non-fatal; continue with actor
+      } catch {
+        // Access control init failure is non-fatal; proceed with actor
       }
 
       return actor;
     },
     staleTime: Number.POSITIVE_INFINITY,
     enabled: true,
-    retry: false,
+    retry: 2,
   });
 
   // When the actor changes, invalidate dependent queries
   useEffect(() => {
     if (actorQuery.data) {
       queryClient.invalidateQueries({
-        predicate: (query) => {
-          return !query.queryKey.includes(ACTOR_QUERY_KEY);
-        },
+        predicate: (query) => !query.queryKey.includes(ACTOR_QUERY_KEY),
       });
       queryClient.refetchQueries({
-        predicate: (query) => {
-          return !query.queryKey.includes(ACTOR_QUERY_KEY);
-        },
+        predicate: (query) => !query.queryKey.includes(ACTOR_QUERY_KEY),
       });
     }
   }, [actorQuery.data, queryClient]);
