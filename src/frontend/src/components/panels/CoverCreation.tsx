@@ -123,7 +123,7 @@ export default function CoverCreation({
       <label
         htmlFor={fileInputId}
         data-ocid="cover.dropzone"
-        className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors select-none block ${
+        className={`relative border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors select-none block ${
           isDragOver
             ? "border-primary bg-primary/5"
             : "border-border hover:border-muted-foreground"
@@ -140,7 +140,7 @@ export default function CoverCreation({
           type="file"
           accept="image/*"
           multiple
-          className="hidden"
+          className="opacity-0 absolute inset-0 w-full h-full cursor-pointer"
           onChange={handleFileInput}
         />
         <Upload className="w-8 h-8 mx-auto mb-3 text-muted-foreground" />

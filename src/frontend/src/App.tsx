@@ -137,12 +137,9 @@ function StudioContent() {
 }
 
 function AuthenticatedApp() {
-  const {
-    actor,
-    isFetching: actorFetching,
-    isError: actorError,
-    refetch,
-  } = useActor();
+  const { actor, isFetching: actorFetching } = useActor();
+  const actorError = !actorFetching && !actor;
+  const refetch = () => window.location.reload();
   const {
     isLoading: profileLoading,
     isFetched,

@@ -193,7 +193,7 @@ function CharacterCreatorModal({
                 id={portraitInputId}
                 type="file"
                 accept="image/*"
-                className="hidden"
+                className="opacity-0 absolute inset-0 w-full h-full cursor-pointer"
                 onChange={handlePortraitSelect}
               />
             </label>
